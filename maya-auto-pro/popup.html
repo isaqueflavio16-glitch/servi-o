@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Maya Auto PRO</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h2>🚀 Maya Auto Ocorrências</h2>
+
+<label>🔑 API Key OpenAI</label>
+<input type="password" id="apikey" placeholder="Cole sua chave aqui">
+
+<label>👷 Operador</label>
+<select id="operador"></select>
+
+<label>🚜 Máquina</label>
+<select id="maquina"></select>
+
+<label>📋 Texto do Relatório</label>
+<textarea id="texto"></textarea>
+
+<button id="btnGPT">🧠 Pensar com GPT</button>
+<button id="btnCadastrar">✅ Cadastrar Automático</button>
+
+<div id="status"></div>
+
+<script src="gpt.js"></script>
+<script src="popup.js"></script>
+
+</body>
+</html>
