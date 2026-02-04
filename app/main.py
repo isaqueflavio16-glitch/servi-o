@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+
 from datetime import datetime
 import time
+
 from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
+
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
@@ -15,6 +18,14 @@ from app.automation import process_with_gpt, run_job
 app = FastAPI(title="Servi-o Automation")
 
 AGENT_LOGS: list[dict[str, Any]] = []
+
+
+from pydantic import BaseModel, Field
+
+from app.automation import run_job
+
+app = FastAPI(title="Servi-o Automation")
+
 
 
 class JobCreate(BaseModel):
@@ -35,8 +46,11 @@ class JobExecutionResponse(BaseModel):
     details: dict[str, Any]
 
 
+
 class MayaRequest(BaseModel):
     texto: str
+
+
 
 
 JOBS: dict[str, Job] = {}
@@ -70,6 +84,7 @@ async def run_job_endpoint(job_id: str) -> JobExecutionResponse:
     result_dict = asdict(result)
     result_dict["executed_at"] = result.executed_at.isoformat() + "Z"
     return JobExecutionResponse(**result_dict)
+
 
 
 @app.post("/maya-agent")

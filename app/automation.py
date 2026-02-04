@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+
 import json
 import os
 from typing import Any
 
 from openai import OpenAI
-
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -41,6 +41,8 @@ Outro Motivo
 Responda SOMENTE JSON.
 """
 
+from typing import Any
+
 
 @dataclass
 class JobResult:
@@ -61,6 +63,7 @@ def run_job(job_id: str, payload: dict[str, Any]) -> JobResult:
         "payload": payload,
     }
     return JobResult(job_id=job_id, executed_at=now, status="success", details=result_details)
+
 
 
 def process_with_gpt(texto: str) -> list[dict[str, Any]]:
