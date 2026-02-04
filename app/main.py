@@ -94,6 +94,8 @@ async def maya_agent_logs() -> list[dict[str, Any]]:
 
 
 @app.get("/maya-agent/panel", response_class=HTMLResponse)
+@app.get("/maya-agent/dashboard", response_class=HTMLResponse)
+@app.get("/dashboard", response_class=HTMLResponse)
 async def maya_agent_panel() -> HTMLResponse:
     html = """
 <!DOCTYPE html>
