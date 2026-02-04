@@ -2,6 +2,7 @@ const operadorSelect = document.getElementById("operador");
 const maquinaSelect = document.getElementById("maquina");
 const status = document.getElementById("status");
 const apiKeyInput = document.getElementById("apikey");
+const launchButton = document.getElementById("btnLaunch");
 
 // ✅ carregar dados do site Maya
 async function carregarDados() {
@@ -51,6 +52,10 @@ async function carregarDados() {
 }
 
 carregarDados();
+
+launchButton.addEventListener("click", async () => {
+  await chrome.tabs.create({ url: "https://mayasistemas.com.br/sistema/" });
+});
 
 // ✅ salvar preferências
 function salvar() {
