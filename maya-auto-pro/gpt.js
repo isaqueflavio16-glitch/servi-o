@@ -1,3 +1,12 @@
+
+async function analisarComGPT(texto) {
+  const response = await fetch("http://127.0.0.1:8000/maya-agent", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ texto })
+
 async function analisarComGPT(texto, apiKey) {
   const promptDoUsuario = `
 Transforme esse texto em JSON no formato:
@@ -61,9 +70,12 @@ ${texto}
       ],
       temperature: 0.2
     })
+
   });
 
   const data = await response.json();
 
+
+  return data.ocorrencias;
+
   return JSON.parse(data.choices[0].message.content);
-}

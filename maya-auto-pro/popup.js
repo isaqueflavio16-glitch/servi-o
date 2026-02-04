@@ -1,7 +1,10 @@
 const operadorSelect = document.getElementById("operador");
 const maquinaSelect = document.getElementById("maquina");
 const status = document.getElementById("status");
+codex/create-app-to-automate-service-ylxxja
+
 const apiKeyInput = document.getElementById("apikey");
+
 const launchButton = document.getElementById("btnLaunch");
 
 // ✅ carregar dados do site Maya
@@ -42,10 +45,16 @@ async function carregarDados() {
     });
 
     // ✅ carregar preferências
+
+    chrome.storage.local.get(["operador", "maquina"], (data) => {
+      if (data.operador) operadorSelect.value = data.operador;
+      if (data.maquina) maquinaSelect.value = data.maquina;
+
     chrome.storage.local.get(["operador", "maquina", "apikey"], (data) => {
       if (data.operador) operadorSelect.value = data.operador;
       if (data.maquina) maquinaSelect.value = data.maquina;
       if (data.apikey) apiKeyInput.value = data.apikey;
+
     });
 
   });
@@ -61,8 +70,12 @@ launchButton.addEventListener("click", async () => {
 function salvar() {
   chrome.storage.local.set({
     operador: operadorSelect.value,
+
+    maquina: maquinaSelect.value
+
     maquina: maquinaSelect.value,
     apikey: apiKeyInput.value
+
   });
 }
 
@@ -73,6 +86,9 @@ document.getElementById("btnGPT").addEventListener("click", async () => {
   status.innerText = "🧠 GPT pensando...";
 
   const texto = document.getElementById("texto").value;
+
+  const lista = await analisarComGPT(texto);
+
   const apiKey = apiKeyInput.value;
 
   const lista = await analisarComGPT(texto, apiKey);
