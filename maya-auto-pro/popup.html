@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Maya Auto PRO</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -9,26 +10,37 @@
 
 <header class="header">
   <h2>🚀 Maya Auto Ocorrências</h2>
-  <p class="subtitle">Automatize o cadastro com GPT e envio rápido para o Maya.</p>
+  <p class="subtitle">Automação autônoma com IA para preenchimento no Maya.</p>
 </header>
 
 <section class="card">
-  <label>👷 Operador</label>
+  <label for="operador">👷 Operador</label>
   <select id="operador"></select>
 
-  <label>🚜 Máquina</label>
+  <label for="maquina">🚜 Máquina</label>
   <select id="maquina"></select>
 </section>
 
 <section class="card">
-  <label>📋 Texto do Relatório</label>
+  <div class="row-between">
+    <label for="texto">📋 Texto do Relatório</label>
+    <button id="btnExample" class="link-btn" type="button">Exemplo</button>
+  </div>
   <textarea id="texto" placeholder="Cole o relatório aqui..."></textarea>
+</section>
+
+<section class="card">
+  <div class="progress-title">Progresso da automação</div>
+  <div id="progressText" class="progress-text">Aguardando execução...</div>
+  <div class="progress-track">
+    <div id="progressBar" class="progress-fill" style="width: 0%"></div>
+  </div>
 </section>
 
 <div class="button-group">
   <button id="btnLaunch" class="secondary">🌐 Abrir Maya</button>
-  <button id="btnGPT">🧠 Pensar com GPT</button>
-  <button id="btnCadastrar" class="danger">✅ Cadastrar Automático</button>
+  <button id="btnGPT">🧠 Estruturar com GPT</button>
+  <button id="btnCadastrar" class="danger">🤖 Executar Automático</button>
 </div>
 
 <div id="status" class="status">Pronto para começar.</div>

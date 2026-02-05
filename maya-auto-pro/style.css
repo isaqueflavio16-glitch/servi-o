@@ -1,9 +1,20 @@
+:root {
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --text: #1e293b;
+  --muted: #64748b;
+  --line: #dbe2ea;
+  --primary: #0f172a;
+  --danger: #b91c1c;
+  --accent: #0f766e;
+}
+
 body {
   font-family: "Inter", Arial, sans-serif;
   padding: 14px;
-  width: 360px;
-  background: #f8f9fb;
-  color: #1f2933;
+  width: 380px;
+  background: var(--bg);
+  color: var(--text);
 }
 
 h2 {
@@ -13,7 +24,7 @@ h2 {
 
 label {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: #334155;
 }
 
@@ -23,14 +34,14 @@ input, select, textarea, button {
   margin-bottom: 12px;
   padding: 10px;
   font-size: 14px;
-  border-radius: 8px;
-  border: 1px solid #d7dee8;
+  border-radius: 10px;
+  border: 1px solid var(--line);
   background: #fff;
   box-sizing: border-box;
 }
 
 textarea {
-  height: 140px;
+  height: 130px;
   resize: vertical;
 }
 
@@ -38,16 +49,20 @@ button {
   cursor: pointer;
   font-weight: 700;
   border: none;
-  border-radius: 10px;
-  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.2s ease;
 }
 
-button:active {
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+button:active:not(:disabled) {
   transform: scale(0.99);
 }
 
 #btnGPT {
-  background: #111827;
+  background: var(--primary);
   color: white;
 }
 
@@ -58,7 +73,7 @@ button:active {
 
 .danger,
 #btnCadastrar {
-  background: #b91c1c;
+  background: var(--danger);
   color: white;
 }
 
@@ -69,11 +84,11 @@ button:active {
 .subtitle {
   margin: 0;
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted);
 }
 
 .card {
-  background: #fff;
+  background: var(--card);
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 12px;
@@ -88,7 +103,52 @@ button:active {
 
 .status {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   margin-top: 10px;
-  color: #0f766e;
+  color: var(--accent);
+}
+
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.link-btn {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #0369a1;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.progress-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0f766e, #22c55e);
+  transition: width 0.25s ease;
 }

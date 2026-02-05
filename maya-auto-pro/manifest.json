@@ -1,17 +1,21 @@
 {
   "manifest_version": 3,
   "name": "Maya Auto Ocorrências PRO",
-  "version": "2.0",
+  "version": "2.1",
   "description": "Cadastro automático inteligente de ocorrências no Maya",
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "tabs"
   ],
   "host_permissions": [
     "https://mayasistemas.com.br/*",
     "http://127.0.0.1:8000/*"
   ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
   "action": {
     "default_popup": "popup.html"
   },
