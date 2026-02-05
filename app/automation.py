@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-
 import json
 import os
 from typing import Any
 
 from openai import OpenAI
 
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 
 PROMPT_BASE = """
 Você é um agente especialista em ocorrências do Maya.
@@ -41,8 +42,6 @@ Outro Motivo
 Responda SOMENTE JSON.
 """
 
-from typing import Any
-
 
 @dataclass
 class JobResult:
@@ -53,28 +52,33 @@ class JobResult:
 
 
 def run_job(job_id: str, payload: dict[str, Any]) -> JobResult:
-    """Executa a automação do serviço.
 
-    Substitua esta lógica pelo fluxo real do seu serviço.
-    """
     now = datetime.utcnow()
+
     result_details = {
         "message": "Automação executada com sucesso (simulação).",
         "payload": payload,
     }
-    return JobResult(job_id=job_id, executed_at=now, status="success", details=result_details)
 
+    return JobResult(
+        job_id=job_id,
+        executed_at=now,
+        status="success",
+        details=result_details,
+    )
 
 
 def process_with_gpt(texto: str) -> list[dict[str, Any]]:
+
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.2,
         messages=[
-            {"role": "system", "content": "Agente Maya"},
-            {"role": "user", "content": PROMPT_BASE + "\n\nTexto:\n" + texto},
+            {"role": "system", "content": PROMPT_BASE},
+            {"role": "user", "content": f"Texto:\n{texto}"},
         ],
     )
 
     content = response.choices[0].message.content
+
     return json.loads(content)
