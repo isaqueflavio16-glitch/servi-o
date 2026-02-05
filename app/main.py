@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import datetime
+from datetime import UTC, datetime
 import time
 from typing import Any
 from uuid import uuid4
@@ -16,6 +16,7 @@ from app.automation import process_with_gpt, run_job
 app = FastAPI(title="Servi-o Automation")
 
 AGENT_LOGS: list[dict[str, Any]] = []
+MAX_AGENT_LOGS = 500
 
 
 # ================= MODELS =================
@@ -39,7 +40,7 @@ class JobExecutionResponse(BaseModel):
 
 
 class MayaRequest(BaseModel):
-    texto: str
+    texto: str = Field(..., min_length=1)
 
 
 JOBS: dict[str, Job] = {}
@@ -49,7 +50,7 @@ JOBS: dict[str, Job] = {}
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "jobs": len(JOBS), "logs": len(AGENT_LOGS)}
 
 
 @app.post("/jobs", response_model=Job)
@@ -78,7 +79,7 @@ async def run_job_endpoint(job_id: str):
     result = run_job(job_id=job.id, payload=job.payload)
 
     result_dict = asdict(result)
-    result_dict["executed_at"] = result.executed_at.isoformat() + "Z"
+    result_dict["executed_at"] = result.executed_at.isoformat()
 
     return JobExecutionResponse(**result_dict)
 
@@ -88,18 +89,27 @@ async def maya_agent(req: MayaRequest):
 
     start = time.monotonic()
 
-    resultado = process_with_gpt(req.texto)
+    try:
+        resultado = process_with_gpt(req.texto)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=f"Resposta inválida do modelo: {exc}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Falha ao processar com IA: {exc}") from exc
 
     duration_ms = int((time.monotonic() - start) * 1000)
 
     AGENT_LOGS.append(
         {
-            "time": datetime.utcnow().isoformat() + "Z",
+            "time": datetime.now(UTC).isoformat(),
             "input": req.texto,
             "output": resultado,
             "duration_ms": duration_ms,
         }
     )
+
+    # Mantém somente os logs mais recentes em memória.
+    if len(AGENT_LOGS) > MAX_AGENT_LOGS:
+        del AGENT_LOGS[:-MAX_AGENT_LOGS]
 
     return {"status": "ok", "ocorrencias": resultado}
 

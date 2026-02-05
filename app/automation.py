@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 import json
 import os
 from typing import Any
@@ -53,7 +53,7 @@ class JobResult:
 
 def run_job(job_id: str, payload: dict[str, Any]) -> JobResult:
 
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
 
     result_details = {
         "message": "Automação executada com sucesso (simulação).",
@@ -66,6 +66,22 @@ def run_job(job_id: str, payload: dict[str, Any]) -> JobResult:
         status="success",
         details=result_details,
     )
+
+
+def _extract_json(content: str) -> str:
+    """Remove markdown fences e retorna um JSON válido em texto."""
+    cleaned = content.strip()
+
+    if cleaned.startswith("```"):
+        parts = cleaned.split("```")
+        # Pega o maior bloco interno por segurança
+        candidates = [p.strip() for p in parts if p.strip()]
+        if candidates:
+            cleaned = max(candidates, key=len)
+            if cleaned.lower().startswith("json"):
+                cleaned = cleaned[4:].strip()
+
+    return cleaned
 
 
 def process_with_gpt(texto: str) -> list[dict[str, Any]]:
@@ -81,4 +97,12 @@ def process_with_gpt(texto: str) -> list[dict[str, Any]]:
 
     content = response.choices[0].message.content
 
-    return json.loads(content)
+    if not content:
+        raise ValueError("Resposta vazia do modelo")
+
+    parsed = json.loads(_extract_json(content))
+
+    if not isinstance(parsed, list):
+        raise ValueError("Formato inválido: esperado uma lista de ocorrências")
+
+    return parsed
