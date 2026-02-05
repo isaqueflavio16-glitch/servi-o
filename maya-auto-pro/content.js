@@ -13,6 +13,43 @@ function normalizeSelector(...selectors) {
   return null;
 }
 
+function normalizeText(value) {
+  return safeText(value).replace(/\s+/g, " ").toLowerCase();
+}
+
+function resolveFieldFromLabel(labelEl) {
+  const htmlFor = safeText(labelEl.getAttribute("for"));
+  if (htmlFor) {
+    const byFor = document.getElementById(htmlFor);
+    if (byFor) return byFor;
+  }
+
+  const fromNext = labelEl.nextElementSibling?.matches?.("input,select,textarea")
+    ? labelEl.nextElementSibling
+    : null;
+  if (fromNext) return fromNext;
+
+  return labelEl.parentElement?.querySelector?.("select,input,textarea") || null;
+}
+
+function findFieldByLabel(...aliases) {
+  const wanted = aliases.map(normalizeText).filter(Boolean);
+  if (!wanted.length) return null;
+
+  const labels = [...document.querySelectorAll("label")];
+  for (const labelEl of labels) {
+    const labelText = normalizeText(labelEl.innerText || labelEl.textContent);
+    if (!labelText) continue;
+
+    if (wanted.some((key) => labelText.includes(key))) {
+      const field = resolveFieldFromLabel(labelEl);
+      if (field) return field;
+    }
+  }
+
+  return null;
+}
+
 function safeText(value) {
   return value == null ? "" : String(value).trim();
 }
@@ -50,10 +87,10 @@ function pickOptionByLabelOrValue(selectEl, wanted) {
   const target = safeText(wanted);
   if (!target) return null;
 
+  const normalizedTarget = normalizeText(target);
   return [...selectEl.options].find((o) => {
-    const text = safeText(o.text).toLowerCase();
-    const value = safeText(o.value).toLowerCase();
-    const normalizedTarget = target.toLowerCase();
+    const text = normalizeText(o.text);
+    const value = normalizeText(o.value);
     return text === normalizedTarget || value === normalizedTarget;
   });
 }
@@ -61,15 +98,25 @@ function pickOptionByLabelOrValue(selectEl, wanted) {
 function setFieldValue(field, value, eventName = "input") {
   field.value = value;
   field.dispatchEvent(new Event(eventName, { bubbles: true }));
+
+  if (eventName !== "change") {
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+  }
 }
 
 function getFormElements() {
   return {
-    operatorField: normalizeSelector("#operator_id"),
-    machineField: normalizeSelector("#equipment_id"),
-    descriptionField: normalizeSelector("#description", "textarea[name='description']"),
-    startField: normalizeSelector("#start-time", "input[name='start_time']", "#start_time"),
-    endField: normalizeSelector("#end-time", "input[name='end_time']", "#end_time"),
+    operatorField: normalizeSelector("#operator_id") || findFieldByLabel("operador"),
+    machineField: normalizeSelector("#equipment_id") || findFieldByLabel("máquina", "maquina"),
+    descriptionField:
+      normalizeSelector("#description", "textarea[name='description']") ||
+      findFieldByLabel("descrição", "descricao"),
+    startField:
+      normalizeSelector("#start-time", "input[name='start_time']", "#start_time") ||
+      findFieldByLabel("hora inicial", "início", "inicio"),
+    endField:
+      normalizeSelector("#end-time", "input[name='end_time']", "#end_time") ||
+      findFieldByLabel("hora final", "término", "termino"),
     reasonField: normalizeSelector("#reason", "#reason_id", "select[name='reason_id']"),
     stoppedField: normalizeSelector("#stopped", "#paralyzed", "select[name='paralyzed']"),
     submitButton: normalizeSelector("button[type='submit']", "input[type='submit']"),
@@ -104,8 +151,11 @@ function fillOccurrence(occurrence, operador, maquina) {
   const form = getFormElements();
   validateRequiredFormElements(form);
 
-  setFieldValue(form.operatorField, operador, "change");
-  setFieldValue(form.machineField, maquina, "change");
+  const selectedOperator = pickOptionByLabelOrValue(form.operatorField, operador);
+  const selectedMachine = pickOptionByLabelOrValue(form.machineField, maquina);
+
+  setFieldValue(form.operatorField, selectedOperator?.value || operador, "change");
+  setFieldValue(form.machineField, selectedMachine?.value || maquina, "change");
   setFieldValue(form.descriptionField, safeText(occurrence.descricao) || "Ocorrência automática");
   setFieldValue(form.startField, safeText(occurrence.start) || "00:00");
   setFieldValue(form.endField, safeText(occurrence.end) || "00:00");
