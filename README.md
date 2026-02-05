@@ -1,16 +1,9 @@
 # Servi-o
 
-Aplicação para automatizar serviços. O projeto tem:
-
-- API FastAPI para cadastro/execução de jobs.
-- Endpoint de IA (`/maya-agent`) para converter relato em ocorrências estruturadas.
-- Extensão Chrome `maya-auto-pro` para preencher ocorrências no Maya de forma autônoma.
-
 ## Requisitos
 
 - Python 3.11+
 - `OPENAI_API_KEY` configurada para usar o endpoint `/maya-agent`
-- Google Chrome (para usar a extensão)
 
 ## Instalação da API
 
@@ -35,8 +28,6 @@ uvicorn app.main:app --reload
 - `POST /maya-agent`: transforma texto em ocorrências estruturadas usando IA.
 - `GET /maya-agent/logs`: consulta o histórico de chamadas da IA.
 - `GET /dashboard`: painel HTML simples com atualização automática dos logs.
-
-## Extensão Maya Auto PRO (autônoma)
 
 1. Abra `chrome://extensions` e ative **Modo do desenvolvedor**.
 2. Clique em **Carregar sem compactação** e selecione `maya-auto-pro/`.
