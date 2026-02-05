@@ -1,45 +1,209 @@
-async function cadastrarOcorrencia(oc, operador, maquina) {
+const CREATE_URL = "https://mayasistemas.com.br/sistema/index.php?menu=occurrence_create";
+const STEP_DELAY_MS = 1800;
 
-  document.querySelector("#operator_id").value = operador;
-  document.querySelector("#equipment_id").value = maquina;
-
-  document.querySelector("#description").value = oc.descricao;
-
-  document.querySelector("#start-time").value = oc.start;
-  document.querySelector("#end-time").value = oc.end;
-
-  console.log("✅ Cadastrando:", oc.descricao);
-
-  document.querySelector("button[type='submit']").click();
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function cadastrarLista(lista, operador, maquina) {
-
-  for (let i = 0; i < lista.length; i++) {
-
-    await cadastrarOcorrencia(lista[i], operador, maquina);
-
-    alert(`✅ Salvando ${i+1}/${lista.length}`);
-
-    await new Promise(r => setTimeout(r, 4000));
-
-    window.location.href =
-      "https://mayasistemas.com.br/sistema/index.php?menu=occurrence_create";
-
-    await new Promise(r => setTimeout(r, 4000));
+function normalizeSelector(...selectors) {
+  for (const selector of selectors) {
+    const el = document.querySelector(selector);
+    if (el) return el;
   }
-
-  alert("✅ Todas ocorrências cadastradas!");
+  return null;
 }
 
-window.addEventListener("message", (event) => {
+function safeText(value) {
+  return value == null ? "" : String(value).trim();
+}
 
-  if (event.data.type === "MAYA_AUTO_PRO") {
-    cadastrarLista(
-      event.data.lista,
-      event.data.operador,
-      event.data.maquina
-    );
+function setProgress(total, done, message) {
+  chrome.storage.local.set({
+    mayaAutoProgress: { total, done, message, updatedAt: new Date().toISOString() },
+  });
+  console.log("[MAYA-AUTO]", `${done}/${total}`, message);
+}
+
+async function getRunState() {
+  const { mayaAutoRun } = await chrome.storage.local.get(["mayaAutoRun"]);
+  return mayaAutoRun || null;
+}
+
+async function updateRunState(patch) {
+  const current = await getRunState();
+  if (!current) return null;
+
+  const next = { ...current, ...patch };
+  await chrome.storage.local.set({ mayaAutoRun: next });
+  return next;
+}
+
+function ensureCreatePage() {
+  if (!window.location.href.includes("menu=occurrence_create")) {
+    window.location.href = CREATE_URL;
+    return false;
+  }
+  return true;
+}
+
+function pickOptionByLabelOrValue(selectEl, wanted) {
+  const target = safeText(wanted);
+  if (!target) return null;
+
+  return [...selectEl.options].find((o) => {
+    const text = safeText(o.text).toLowerCase();
+    const value = safeText(o.value).toLowerCase();
+    const normalizedTarget = target.toLowerCase();
+    return text === normalizedTarget || value === normalizedTarget;
+  });
+}
+
+function setFieldValue(field, value, eventName = "input") {
+  field.value = value;
+  field.dispatchEvent(new Event(eventName, { bubbles: true }));
+}
+
+function getFormElements() {
+  return {
+    operatorField: normalizeSelector("#operator_id"),
+    machineField: normalizeSelector("#equipment_id"),
+    descriptionField: normalizeSelector("#description", "textarea[name='description']"),
+    startField: normalizeSelector("#start-time", "input[name='start_time']", "#start_time"),
+    endField: normalizeSelector("#end-time", "input[name='end_time']", "#end_time"),
+    reasonField: normalizeSelector("#reason", "#reason_id", "select[name='reason_id']"),
+    stoppedField: normalizeSelector("#stopped", "#paralyzed", "select[name='paralyzed']"),
+    submitButton: normalizeSelector("button[type='submit']", "input[type='submit']"),
+  };
+}
+
+function validateRequiredFormElements(form) {
+  const required = [
+    form.operatorField,
+    form.machineField,
+    form.descriptionField,
+    form.startField,
+    form.endField,
+    form.submitButton,
+  ];
+
+  if (required.some((field) => !field)) {
+    throw new Error("Campos essenciais não encontrados na tela de ocorrência do Maya.");
+  }
+}
+
+function fillOptionalSelect(selectField, wanted) {
+  if (!selectField || !safeText(wanted)) return;
+
+  const option = pickOptionByLabelOrValue(selectField, wanted);
+  if (!option) return;
+
+  setFieldValue(selectField, option.value, "change");
+}
+
+function fillOccurrence(occurrence, operador, maquina) {
+  const form = getFormElements();
+  validateRequiredFormElements(form);
+
+  setFieldValue(form.operatorField, operador, "change");
+  setFieldValue(form.machineField, maquina, "change");
+  setFieldValue(form.descriptionField, safeText(occurrence.descricao) || "Ocorrência automática");
+  setFieldValue(form.startField, safeText(occurrence.start) || "00:00");
+  setFieldValue(form.endField, safeText(occurrence.end) || "00:00");
+
+  fillOptionalSelect(form.reasonField, occurrence.motivo);
+  fillOptionalSelect(form.stoppedField, occurrence.paralisado);
+
+  form.submitButton.click();
+}
+
+async function markFinished(total) {
+  await updateRunState({ running: false, index: total });
+  setProgress(total, total, "✅ Todas as ocorrências foram cadastradas.");
+}
+
+async function markFailure(total, index, errorMessage) {
+  await updateRunState({ running: false, error: errorMessage });
+  setProgress(total || 0, index || 0, `❌ Erro na automação: ${errorMessage}`);
+}
+
+async function processCurrentItem(runState) {
+  const total = runState.lista?.length || 0;
+  const index = runState.index || 0;
+  const current = runState.lista[index];
+
+  if (!current) {
+    await markFinished(total);
+    return;
   }
 
+  setProgress(total, index, `Preenchendo ocorrência ${index + 1}/${total}...`);
+  fillOccurrence(current, runState.operador, runState.maquina);
+
+  await updateRunState({ index: index + 1 });
+  await sleep(STEP_DELAY_MS);
+
+  if (index + 1 < total) {
+    setProgress(total, index + 1, "Ocorrência enviada. Reabrindo formulário...");
+    window.location.href = CREATE_URL;
+    return;
+  }
+
+  await markFinished(total);
+}
+
+async function processQueue() {
+  const runState = await getRunState();
+  if (!runState?.running) return;
+
+  const total = runState.lista?.length || 0;
+  const index = runState.index || 0;
+
+  if (!total) {
+    await updateRunState({ running: false });
+    setProgress(0, 0, "Nenhuma ocorrência para enviar.");
+    return;
+  }
+
+  if (!ensureCreatePage()) {
+    setProgress(total, index, "Abrindo tela de cadastro de ocorrência...");
+    return;
+  }
+
+  try {
+    await processCurrentItem(runState);
+  } catch (error) {
+    console.error("[MAYA-AUTO] erro", error);
+    await markFailure(total, index, String(error));
+  }
+}
+
+function isLegacyMessage(event) {
+  return event?.data?.type === "MAYA_AUTO_PRO";
+}
+
+async function migrateLegacyMessageToRunState(event) {
+  await chrome.storage.local.set({
+    mayaAutoRun: {
+      running: true,
+      lista: event.data.lista,
+      operador: event.data.operador,
+      maquina: event.data.maquina,
+      index: 0,
+      startedAt: new Date().toISOString(),
+    },
+  });
+}
+
+window.addEventListener("message", async (event) => {
+  if (!isLegacyMessage(event)) return;
+  await migrateLegacyMessageToRunState(event);
+  processQueue();
 });
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type === "MAYA_AUTO_RESUME") {
+    processQueue();
+  }
+});
+
+processQueue();
