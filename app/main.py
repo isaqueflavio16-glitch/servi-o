@@ -12,10 +12,13 @@ from pydantic import BaseModel, Field
 
 from app.automation import process_with_gpt, run_job
 
+
 app = FastAPI(title="Servi-o Automation")
 
 AGENT_LOGS: list[dict[str, Any]] = []
 
+
+# ================= MODELS =================
 
 class JobCreate(BaseModel):
     name: str = Field(..., min_length=2)
@@ -42,41 +45,53 @@ class MayaRequest(BaseModel):
 JOBS: dict[str, Job] = {}
 
 
+# ================= ROUTES =================
+
 @app.get("/health")
-async def health() -> dict[str, str]:
+async def health():
     return {"status": "ok"}
 
 
 @app.post("/jobs", response_model=Job)
-async def create_job(job: JobCreate) -> Job:
+async def create_job(job: JobCreate):
+
     job_id = str(uuid4())
     created = Job(id=job_id, name=job.name, payload=job.payload)
     JOBS[job_id] = created
+
     return created
 
 
 @app.get("/jobs", response_model=list[Job])
-async def list_jobs() -> list[Job]:
+async def list_jobs():
     return list(JOBS.values())
 
 
 @app.post("/jobs/{job_id}/run", response_model=JobExecutionResponse)
-async def run_job_endpoint(job_id: str) -> JobExecutionResponse:
+async def run_job_endpoint(job_id: str):
+
     job = JOBS.get(job_id)
+
     if not job:
         raise HTTPException(status_code=404, detail="Job não encontrado")
 
     result = run_job(job_id=job.id, payload=job.payload)
+
     result_dict = asdict(result)
     result_dict["executed_at"] = result.executed_at.isoformat() + "Z"
+
     return JobExecutionResponse(**result_dict)
 
 
 @app.post("/maya-agent")
-async def maya_agent(req: MayaRequest) -> dict[str, Any]:
+async def maya_agent(req: MayaRequest):
+
     start = time.monotonic()
+
     resultado = process_with_gpt(req.texto)
+
     duration_ms = int((time.monotonic() - start) * 1000)
+
     AGENT_LOGS.append(
         {
             "time": datetime.utcnow().isoformat() + "Z",
@@ -85,62 +100,44 @@ async def maya_agent(req: MayaRequest) -> dict[str, Any]:
             "duration_ms": duration_ms,
         }
     )
+
     return {"status": "ok", "ocorrencias": resultado}
 
 
 @app.get("/maya-agent/logs")
-async def maya_agent_logs() -> list[dict[str, Any]]:
+async def maya_agent_logs():
     return AGENT_LOGS
 
 
-@app.get("/maya-agent/panel", response_class=HTMLResponse)
-@app.get("/maya-agent/dashboard", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
-async def maya_agent_panel() -> HTMLResponse:
+async def maya_agent_panel():
+
     html = """
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
 <head>
-  <meta charset="utf-8" />
-  <title>Maya Agent - Painel Live</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h1 { font-size: 20px; margin-bottom: 12px; }
-    .log { border: 1px solid #ddd; border-radius: 6px; padding: 12px; margin-bottom: 12px; }
-    .meta { color: #555; font-size: 12px; margin-bottom: 6px; }
-    pre { background: #f7f7f7; padding: 8px; border-radius: 6px; overflow-x: auto; }
-  </style>
+<title>Maya Agent Live</title>
 </head>
 <body>
-  <h1>📡 Maya Agent - Painel Live</h1>
-  <div id="logs">Carregando...</div>
-  <script>
-    async function carregar() {
-      const response = await fetch('/maya-agent/logs');
-      const data = await response.json();
-      const logsEl = document.getElementById('logs');
-      if (!data.length) {
-        logsEl.textContent = 'Sem execuções ainda.';
-        return;
-      }
-      logsEl.innerHTML = '';
-      data.slice().reverse().forEach((log) => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'log';
-        wrapper.innerHTML = `
-          <div class="meta">⏱ ${log.time} • ${log.duration_ms} ms</div>
-          <strong>Entrada</strong>
-          <pre>${log.input}</pre>
-          <strong>Saída</strong>
-          <pre>${JSON.stringify(log.output, null, 2)}</pre>
-        `;
-        logsEl.appendChild(wrapper);
-      });
-    }
-    carregar();
-    setInterval(carregar, 2000);
-  </script>
+
+<h1>📡 Maya Agent Live</h1>
+<pre id="logs"></pre>
+
+<script>
+
+async function atualizar(){
+    const res = await fetch('/maya-agent/logs');
+    const data = await res.json();
+    document.getElementById("logs").innerText =
+        JSON.stringify(data,null,2);
+}
+
+setInterval(atualizar,2000);
+
+</script>
+
 </body>
 </html>
 """
+
     return HTMLResponse(content=html)

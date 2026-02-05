@@ -3,8 +3,11 @@ const maquinaSelect = document.getElementById("maquina");
 const status = document.getElementById("status");
 const launchButton = document.getElementById("btnLaunch");
 
-// ✅ carregar dados do site Maya
+
+// ================= carregar dados =================
+
 async function carregarDados() {
+
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
   chrome.scripting.executeScript({
@@ -24,23 +27,27 @@ async function carregarDados() {
 
   }, (res) => {
 
+    if (!res || !res[0] || !res[0].result) {
+      console.log("Página Maya não carregada ainda");
+      return;
+    }
+
     const { operadores, maquinas } = res[0].result;
 
     operadores.forEach(op => {
-      let opt = document.createElement("option");
+      const opt = document.createElement("option");
       opt.value = op.value;
       opt.innerText = op.label;
       operadorSelect.appendChild(opt);
     });
 
     maquinas.forEach(m => {
-      let opt = document.createElement("option");
+      const opt = document.createElement("option");
       opt.value = m.value;
       opt.innerText = m.label;
       maquinaSelect.appendChild(opt);
     });
 
-    // ✅ carregar preferências
     chrome.storage.local.get(["operador", "maquina"], (data) => {
       if (data.operador) operadorSelect.value = data.operador;
       if (data.maquina) maquinaSelect.value = data.maquina;
@@ -51,25 +58,36 @@ async function carregarDados() {
 
 carregarDados();
 
+
+// ================= abrir maya =================
+
 launchButton.addEventListener("click", async () => {
   await chrome.tabs.create({ url: "https://mayasistemas.com.br/sistema/" });
 });
 
-// ✅ salvar preferências
+
+// ================= salvar =================
+
 function salvar() {
+
   chrome.storage.local.set({
     operador: operadorSelect.value,
     maquina: maquinaSelect.value
   });
+
 }
 
-// ✅ Botão GPT
+
+// ================= botão GPT =================
+
 document.getElementById("btnGPT").addEventListener("click", async () => {
 
   salvar();
+
   status.innerText = "🧠 GPT pensando...";
 
   const texto = document.getElementById("texto").value;
+
   const lista = await analisarComGPT(texto);
 
   document.getElementById("texto").value =
@@ -78,15 +96,18 @@ document.getElementById("btnGPT").addEventListener("click", async () => {
   status.innerText = "✅ GPT estruturou tudo!";
 });
 
-// ✅ Botão cadastrar automático
+
+// ================= cadastrar =================
+
 document.getElementById("btnCadastrar").addEventListener("click", async () => {
 
   salvar();
+
   status.innerText = "⏳ Enviando para Maya...";
 
   const textoJSON = document.getElementById("texto").value;
 
-  let lista = JSON.parse(textoJSON);
+  const lista = JSON.parse(textoJSON);
 
   const operador = operadorSelect.value;
   const maquina = maquinaSelect.value;
@@ -96,12 +117,14 @@ document.getElementById("btnCadastrar").addEventListener("click", async () => {
   chrome.scripting.executeScript({
     target: { tabId: tab.id },
     func: (lista, operador, maquina) => {
+
       window.postMessage({
         type: "MAYA_AUTO_PRO",
         lista,
         operador,
         maquina
       }, "*");
+
     },
     args: [lista, operador, maquina]
   });
