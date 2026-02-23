@@ -1,5 +1,6 @@
 const CREATE_URL = "https://mayasistemas.com.br/sistema/index.php?menu=occurrence_create";
 const STEP_DELAY_MS = 1800;
+let isExecuting = false;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -58,7 +59,39 @@ function setProgress(total, done, message) {
   chrome.storage.local.set({
     mayaAutoProgress: { total, done, message, updatedAt: new Date().toISOString() },
   });
+  showFloatingStatus(message);
   console.log("[MAYA-AUTO]", `${done}/${total}`, message);
+}
+
+function showFloatingStatus(message) {
+  let el = document.getElementById("maya-auto-status");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "maya-auto-status";
+    Object.assign(el.style, {
+      position: "fixed",
+      right: "20px",
+      bottom: "20px",
+      zIndex: "999999",
+      background: "#0f172a",
+      color: "#ffffff",
+      padding: "10px 14px",
+      borderRadius: "8px",
+      fontFamily: "sans-serif",
+      fontSize: "13px",
+      fontWeight: "600",
+      boxShadow: "0 4px 10px rgba(0, 0, 0, 0.25)",
+    });
+    document.body.appendChild(el);
+  }
+
+  el.textContent = `🤖 Robô Maya: ${message}`;
+}
+
+function removeFloatingStatus(delayMs = 4000) {
+  setTimeout(() => {
+    document.getElementById("maya-auto-status")?.remove();
+  }, delayMs);
 }
 
 async function getRunState() {
@@ -229,6 +262,7 @@ async function fillOccurrence(form, occurrence, operador, maquina) {
 async function markFinished(total) {
   await updateRunState({ running: false, index: total });
   setProgress(total, total, "✅ Todas as ocorrências foram cadastradas.");
+  removeFloatingStatus();
 }
 
 async function markFailure(total, index, errorMessage) {
@@ -263,28 +297,36 @@ async function processCurrentItem(runState) {
 }
 
 async function processQueue() {
+  if (isExecuting) return;
+
   const runState = await getRunState();
   if (!runState?.running) return;
+
+  isExecuting = true;
 
   const total = runState.lista?.length || 0;
   const index = runState.index || 0;
 
-  if (!total) {
-    await updateRunState({ running: false });
-    setProgress(0, 0, "Nenhuma ocorrência para enviar.");
-    return;
-  }
-
-  if (!ensureCreatePage()) {
-    setProgress(total, index, "Abrindo tela de cadastro de ocorrência...");
-    return;
-  }
-
   try {
+    if (!total) {
+      await updateRunState({ running: false });
+      setProgress(0, 0, "Nenhuma ocorrência para enviar.");
+      removeFloatingStatus();
+      return;
+    }
+
+    if (!ensureCreatePage()) {
+      setProgress(total, index, "Abrindo tela de cadastro de ocorrência...");
+      return;
+    }
+
     await processCurrentItem(runState);
   } catch (error) {
     console.error("[MAYA-AUTO] erro", error);
     await markFailure(total, index, String(error));
+    removeFloatingStatus(7000);
+  } finally {
+    isExecuting = false;
   }
 }
 
@@ -306,6 +348,8 @@ async function migrateLegacyMessageToRunState(event) {
 }
 
 window.addEventListener("message", async (event) => {
+  if (event.origin !== "https://mayasistemas.com.br") return;
+  if (event.source !== window) return;
   if (!isLegacyMessage(event)) return;
   await migrateLegacyMessageToRunState(event);
   processQueue();
@@ -315,6 +359,12 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === "MAYA_AUTO_RESUME") {
     processQueue();
   }
+});
+
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace !== "local") return;
+  if (!changes.mayaAutoRun?.newValue?.running) return;
+  processQueue();
 });
 
 processQueue();
