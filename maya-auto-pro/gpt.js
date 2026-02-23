@@ -1,5 +1,7 @@
+const API_BASE_URL = "http://127.0.0.1:8000";
+
 async function analisarComGPT(texto) {
-  const response = await fetch("http://127.0.0.1:8000/maya-agent", {
+  const response = await fetch(`${API_BASE_URL}/maya-agent`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

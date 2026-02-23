@@ -1,5 +1,6 @@
 const CREATE_URL = "https://mayasistemas.com.br/sistema/index.php?menu=occurrence_create";
 const STEP_DELAY_MS = 1800;
+let isExecuting = false;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -58,7 +59,39 @@ function setProgress(total, done, message) {
   chrome.storage.local.set({
     mayaAutoProgress: { total, done, message, updatedAt: new Date().toISOString() },
   });
+  showFloatingStatus(message);
   console.log("[MAYA-AUTO]", `${done}/${total}`, message);
+}
+
+function showFloatingStatus(message) {
+  let el = document.getElementById("maya-auto-status");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "maya-auto-status";
+    Object.assign(el.style, {
+      position: "fixed",
+      right: "20px",
+      bottom: "20px",
+      zIndex: "999999",
+      background: "#0f172a",
+      color: "#ffffff",
+      padding: "10px 14px",
+      borderRadius: "8px",
+      fontFamily: "sans-serif",
+      fontSize: "13px",
+      fontWeight: "600",
+      boxShadow: "0 4px 10px rgba(0, 0, 0, 0.25)",
+    });
+    document.body.appendChild(el);
+  }
+
+  el.textContent = `🤖 Robô Maya: ${message}`;
+}
+
+function removeFloatingStatus(delayMs = 4000) {
+  setTimeout(() => {
+    document.getElementById("maya-auto-status")?.remove();
+  }, delayMs);
 }
 
 async function getRunState() {
@@ -104,12 +137,43 @@ function setFieldValue(field, value, eventName = "input") {
   }
 }
 
+function isElementVisible(element) {
+  if (!element) return false;
+  if (element.disabled) return false;
+  return Boolean(element.offsetParent || element.getClientRects().length);
+}
+
+function isSelect2FieldVisible(field) {
+  if (!field?.classList?.contains("select2-hidden-accessible")) return false;
+  const container =
+    field.nextElementSibling?.classList?.contains("select2") ? field.nextElementSibling : null;
+  return isElementVisible(container);
+}
+
+function isFieldReady(field) {
+  return isElementVisible(field) || isSelect2FieldVisible(field);
+}
+
+function safeClick(element) {
+  if (!element) return;
+  element.scrollIntoView({ block: "center", behavior: "auto" });
+  element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+  element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+  element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
 function getFormElements() {
   return {
     operatorField: normalizeSelector("#operator_id") || findFieldByLabel("operador"),
     machineField: normalizeSelector("#equipment_id") || findFieldByLabel("máquina", "maquina"),
     descriptionField:
-      normalizeSelector("#description", "textarea[name='description']") ||
+      normalizeSelector(
+        "#occurrence",
+        "textarea[name='occurrence']",
+        "#description",
+        "textarea[name='description']"
+      ) ||
       findFieldByLabel("descrição", "descricao"),
     startField:
       normalizeSelector("#start-time", "input[name='start_time']", "#start_time") ||
@@ -138,6 +202,32 @@ function validateRequiredFormElements(form) {
   }
 }
 
+async function waitForFormReady(maxAttempts = 20, delayMs = 300) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const form = getFormElements();
+    try {
+      validateRequiredFormElements(form);
+    } catch (error) {
+      await sleep(delayMs);
+      continue;
+    }
+
+    const requiredVisible = [
+      form.operatorField,
+      form.machineField,
+      form.descriptionField,
+      form.startField,
+      form.endField,
+      form.submitButton,
+    ].every(isFieldReady);
+
+    if (requiredVisible) return form;
+    await sleep(delayMs);
+  }
+
+  throw new Error("Formulário do Maya não ficou pronto para preenchimento automático.");
+}
+
 function fillOptionalSelect(selectField, wanted) {
   if (!selectField || !safeText(wanted)) return;
 
@@ -147,15 +237,14 @@ function fillOptionalSelect(selectField, wanted) {
   setFieldValue(selectField, option.value, "change");
 }
 
-function fillOccurrence(occurrence, operador, maquina) {
-  const form = getFormElements();
-  validateRequiredFormElements(form);
-
+async function fillOccurrence(form, occurrence, operador, maquina) {
   const selectedOperator = pickOptionByLabelOrValue(form.operatorField, operador);
   const selectedMachine = pickOptionByLabelOrValue(form.machineField, maquina);
 
   setFieldValue(form.operatorField, selectedOperator?.value || operador, "change");
+  await sleep(120);
   setFieldValue(form.machineField, selectedMachine?.value || maquina, "change");
+  await sleep(120);
   setFieldValue(form.descriptionField, safeText(occurrence.descricao) || "Ocorrência automática");
   setFieldValue(form.startField, safeText(occurrence.start) || "00:00");
   setFieldValue(form.endField, safeText(occurrence.end) || "00:00");
@@ -163,12 +252,17 @@ function fillOccurrence(occurrence, operador, maquina) {
   fillOptionalSelect(form.reasonField, occurrence.motivo);
   fillOptionalSelect(form.stoppedField, occurrence.paralisado);
 
-  form.submitButton.click();
+  if (isElementVisible(form.submitButton)) {
+    safeClick(form.submitButton);
+  } else {
+    throw new Error("Botão de envio não está visível para concluir a ocorrência.");
+  }
 }
 
 async function markFinished(total) {
   await updateRunState({ running: false, index: total });
   setProgress(total, total, "✅ Todas as ocorrências foram cadastradas.");
+  removeFloatingStatus();
 }
 
 async function markFailure(total, index, errorMessage) {
@@ -187,7 +281,8 @@ async function processCurrentItem(runState) {
   }
 
   setProgress(total, index, `Preenchendo ocorrência ${index + 1}/${total}...`);
-  fillOccurrence(current, runState.operador, runState.maquina);
+  const form = await waitForFormReady();
+  await fillOccurrence(form, current, runState.operador, runState.maquina);
 
   await updateRunState({ index: index + 1 });
   await sleep(STEP_DELAY_MS);
@@ -202,28 +297,36 @@ async function processCurrentItem(runState) {
 }
 
 async function processQueue() {
+  if (isExecuting) return;
+
   const runState = await getRunState();
   if (!runState?.running) return;
+
+  isExecuting = true;
 
   const total = runState.lista?.length || 0;
   const index = runState.index || 0;
 
-  if (!total) {
-    await updateRunState({ running: false });
-    setProgress(0, 0, "Nenhuma ocorrência para enviar.");
-    return;
-  }
-
-  if (!ensureCreatePage()) {
-    setProgress(total, index, "Abrindo tela de cadastro de ocorrência...");
-    return;
-  }
-
   try {
+    if (!total) {
+      await updateRunState({ running: false });
+      setProgress(0, 0, "Nenhuma ocorrência para enviar.");
+      removeFloatingStatus();
+      return;
+    }
+
+    if (!ensureCreatePage()) {
+      setProgress(total, index, "Abrindo tela de cadastro de ocorrência...");
+      return;
+    }
+
     await processCurrentItem(runState);
   } catch (error) {
     console.error("[MAYA-AUTO] erro", error);
     await markFailure(total, index, String(error));
+    removeFloatingStatus(7000);
+  } finally {
+    isExecuting = false;
   }
 }
 
@@ -245,6 +348,8 @@ async function migrateLegacyMessageToRunState(event) {
 }
 
 window.addEventListener("message", async (event) => {
+  if (event.origin !== "https://mayasistemas.com.br") return;
+  if (event.source !== window) return;
   if (!isLegacyMessage(event)) return;
   await migrateLegacyMessageToRunState(event);
   processQueue();
@@ -254,6 +359,12 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === "MAYA_AUTO_RESUME") {
     processQueue();
   }
+});
+
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace !== "local") return;
+  if (!changes.mayaAutoRun?.newValue?.running) return;
+  processQueue();
 });
 
 processQueue();

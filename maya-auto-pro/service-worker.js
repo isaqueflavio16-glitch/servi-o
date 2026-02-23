@@ -1,4 +1,4 @@
-const MAYA_BASE = "https://mayasistemas.com.br/sistema/";
+const MAYA_BASE = "https://mayasistemas.com.br/sistema/?menu=occurrence_create";
 
 async function findMayaTab() {
   const tabs = await chrome.tabs.query({ url: "https://mayasistemas.com.br/sistema/*" });
@@ -14,6 +14,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       tab = await chrome.tabs.create({ url: MAYA_BASE, active: true });
     } else {
       await chrome.tabs.update(tab.id, { active: true });
+      if (!tab.url?.includes("occurrence_create")) {
+        tab = await chrome.tabs.update(tab.id, { url: MAYA_BASE });
+      }
     }
 
     await chrome.storage.local.set({
@@ -24,14 +27,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         maquina: message.maquina,
         index: 0,
         startedAt: new Date().toISOString(),
-        tabId: tab.id,
       },
     });
 
-    // Garante que o conteúdo processe assim que o tab terminar de carregar.
-    await chrome.tabs.sendMessage(tab.id, { type: "MAYA_AUTO_RESUME" }).catch(() => null);
-
-    sendResponse({ ok: true, tabId: tab.id });
+    sendResponse({ ok: true });
   })().catch((error) => {
     sendResponse({ ok: false, error: String(error) });
   });

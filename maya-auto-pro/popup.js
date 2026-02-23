@@ -1,5 +1,4 @@
-const MAYA_URL = "https://mayasistemas.com.br/sistema/";
-const PROGRESS_POLL_INTERVAL_MS = 1200;
+const MAYA_URL = "https://mayasistemas.com.br/sistema/?menu=occurrence_create";
 
 const elements = {
   operadorSelect: document.getElementById("operador"),
@@ -239,13 +238,18 @@ function setupEvents() {
   elements.exampleButton.addEventListener("click", fillExamplePayload);
   elements.gptButton.addEventListener("click", handleGPT);
   elements.autoButton.addEventListener("click", handleAutomation);
+
+  chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace !== "local") return;
+    if (!changes.mayaAutoProgress && !changes.mayaAutoRun) return;
+    refreshProgress();
+  });
 }
 
 function bootstrap() {
   setupEvents();
   loadData();
   refreshProgress();
-  setInterval(refreshProgress, PROGRESS_POLL_INTERVAL_MS);
 }
 
 bootstrap();
